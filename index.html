@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Desktop Widgets</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css">
+</head>
+<body>
+  <div id="app">
+    <div id="grid-overlay"></div>
+    <div id="widgets-layer"></div>
+  </div>
+
+  <div id="component-panel">
+    <!-- Component items injected here -->
+  </div>
+
+  <div id="context-menu">
+    <div class="menu-item" id="menu-settings">设置 (Settings)</div>
+    <div class="menu-item" id="menu-remove">移除 (Remove)</div>
+  </div>
+
+  <div id="settings-overlay"></div>
+  
+  <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; color: #fff; padding: 20px; box-sizing: border-box; margin: 0; background: transparent; }
+    h2 { margin-top: 0; font-weight: 300; border-bottom: 1px solid #444; padding-bottom: 10px; margin-bottom: 20px; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-size: 13px; color: #aaa; }
+    input, select { width: 100%; padding: 8px; background: #333; border: 1px solid #444; color: white; border-radius: 4px; box-sizing: border-box; }
+    input:focus, select:focus { outline: none; border-color: #0078d4; }
+    .buttons { display: flex; justify-content: flex-end; margin-top: 20px; border-top: 1px solid #444; padding-top: 20px; }
+    button { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px; font-size: 14px; }
+    .btn-save { background: #0078d4; color: white; }
+    .btn-save:hover { background: #006abc; }
+    .btn-cancel { background: #444; color: white; }
+    .btn-cancel:hover { background: #555; }
+    
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #2d2d2d; }
+    ::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #666; }
+  </style>
+</head>
+<body>
+  <h2>组件设置 (Settings)</h2>
+  <div id="form-container"></div>
+  <div class="buttons">
+    <button class="btn-cancel" id="btn-cancel">取消 (Cancel)</button>
+    <button class="btn-save" id="btn-save">保存 (Save)</button>
+  </div>
+  <script>
+    let ipcRenderer;
+    try {
+      ipcRenderer = require('electron').ipcRenderer;
+    } catch (e) {
+      document.body.innerHTML = '<h3 style="color:red">Error: Node Integration missing</h3><p>' + e.message + '</p>';
+      throw e;
+    }
+
+    let currentConfig = {};
+    let currentSchema = [];
+
+    ipcRenderer.on('init-settings', (event, data) => {
+      currentConfig = data.config || {};
+      
+      // Handle schema format (object vs array)
+      if (!Array.isArray(data.schema) && typeof data.schema === 'object') {
+        currentSchema = Object.keys(data.schema).map(key => ({
+          key,
+          ...data.schema[key]
+        }));
+      } else {
+        currentSchema = data.schema || [];
+      }
+      
+      renderForm();
+    });
+
+    function renderForm() {
+      const container = document.getElementById('form-container');
+      container.innerHTML = '';
+      
+      if (!currentSchema || currentSchema.length === 0) {
+        container.innerHTML = '<p style="color:#888;font-style:italic;">此组件没有可配置项。<br>(No settings available for this component.)</p>';
+        return;
+      }
+
+      currentSchema.forEach(field => {
+        const group = document.createElement('div');
+        group.className = 'form-group';
+        
+        const label = document.createElement('label');
+        label.innerText = field.label || field.key;
+        group.appendChild(label);
+        
+        let input;
+        const value = currentConfig[field.key] !== undefined ? currentConfig[field.key] : (field.default !== undefined ? field.default : '');
+        
+        if (field.type === 'select') {
+          input = document.createElement('select');
+          (field.options || []).forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt.value;
+            option.innerText = opt.label || opt.value;
+            if (String(opt.value) === String(value)) option.selected = true;
+            input.appendChild(option);
+          });
+        } else if (field.type === 'boolean') {
+           // Checkbox container
+           const wrapper = document.createElement('div');
+           wrapper.style.display = 'flex';
+           wrapper.style.alignItems = 'center';
+           
+           input = document.createElement('input');
+           input.type = 'checkbox';
+           input.checked = !!value;
+           input.style.width = '18px';
+           input.style.height = '18px';
+           input.style.margin = '0';
+           
+           const txt = document.createElement('span');
+           txt.innerText = value ? 'Enabled' : 'Disabled';
+           txt.style.marginLeft = '10px';
+           txt.style.fontSize = '13px';
+           
+           input.addEventListener('change', () => {
+             txt.innerText = input.checked ? 'Enabled' : 'Disabled';
+           });
+           
+           wrapper.appendChild(input);
+           wrapper.appendChild(txt);
+           group.appendChild(wrapper);
+           // Special case: append wrapper instead of input
+           input.dataset.key = field.key;
+           input.dataset.type = field.type;
+           container.appendChild(group);
+           return; 
+        } else if (field.type === 'number') {
+           input = document.createElement('input');
+           input.type = 'number';
+           input.value = value;
+        } else if (field.type === 'range') {
+           // Range Slider with Value Display
+           const wrapper = document.createElement('div');
+           wrapper.style.display = 'flex';
+           wrapper.style.alignItems = 'center';
+           
+           input = document.createElement('input');
+           input.type = 'range';
+           input.min = field.min !== undefined ? field.min : 0;
+           input.max = field.max !== undefined ? field.max : 100;
+           input.step = field.step !== undefined ? field.step : 1;
+           input.value = value;
+           input.style.flex = '1';
+           
+           const valDisplay = document.createElement('span');
+           valDisplay.innerText = value;
+           valDisplay.style.marginLeft = '10px';
+           valDisplay.style.minWidth = '30px';
+           valDisplay.style.textAlign = 'right';
+           valDisplay.style.fontSize = '13px';
+           
+           input.addEventListener('input', () => {
+             valDisplay.innerText = input.value;
+           });
+           
+           wrapper.appendChild(input);
+           wrapper.appendChild(valDisplay);
+           group.appendChild(wrapper);
+           
+           // Special handling for wrapper
+           input.dataset.key = field.key;
+           input.dataset.type = field.type;
+           container.appendChild(group);
+           return;
+        } else if (field.type === 'textarea') {
+           input = document.createElement('textarea');
+           input.value = value;
+           input.style.width = '100%';
+           input.style.minHeight = '80px';
+           input.style.background = '#333';
+           input.style.border = '1px solid #444';
+           input.style.color = 'white';
+           input.style.padding = '8px';
+           input.style.borderRadius = '4px';
+           input.style.resize = 'vertical';
+        } else if (field.type === 'color') {
+           input = document.createElement('input');
+           input.type = 'color';
+           input.value = value;
+           input.style.height = '40px';
+           input.style.padding = '2px';
+        } else {
+           input = document.createElement('input');
+           input.type = 'text';
+           input.value = value;
+        }
+        
+        input.dataset.key = field.key;
+        input.dataset.type = field.type;
+        group.appendChild(input);
+        container.appendChild(group);
+      });
+      
+      // Attach change listeners
+      const inputs = document.querySelectorAll('#form-container input, #form-container select, #form-container textarea');
+      inputs.forEach(input => {
+         input.addEventListener('input', notifyChange);
+         input.addEventListener('change', notifyChange);
+      });
+    }
+
+    function notifyChange() {
+      const newConfig = { ...currentConfig };
+      const inputs = document.querySelectorAll('#form-container input, #form-container select, #form-container textarea');
+      inputs.forEach(input => {
+         const key = input.dataset.key;
+         const type = input.dataset.type;
+         if (!key) return;
+         
+         if (type === 'boolean') {
+           newConfig[key] = input.checked;
+         } else if (type === 'number' || type === 'range') {
+           newConfig[key] = Number(input.value);
+         } else {
+           newConfig[key] = input.value;
+         }
+      });
+      ipcRenderer.sendToHost('settings-changed', newConfig);
+    }
+
+    document.getElementById('btn-save').addEventListener('click', () => {
+      // Logic is same as notifyChange but sends save-settings
+      const newConfig = { ...currentConfig };
+      const inputs = document.querySelectorAll('#form-container input, #form-container select, #form-container textarea');
+      inputs.forEach(input => {
+         const key = input.dataset.key;
+         const type = input.dataset.type;
+         if (!key) return;
+         
+         if (type === 'boolean') {
+           newConfig[key] = input.checked;
+         } else if (type === 'number' || type === 'range') {
+           newConfig[key] = Number(input.value);
+         } else {
+           newConfig[key] = input.value;
+         }
+      });
+      ipcRenderer.sendToHost('save-settings', newConfig);
+    });
+
+    document.getElementById('btn-cancel').addEventListener('click', () => {
+      ipcRenderer.sendToHost('cancel-settings');
+    });
+  </script>
+</body>
+</html>
