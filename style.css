@@ -137,6 +137,26 @@ body, html {
   pointer-events: none; 
 }
 
+/* Edit Mode Overlay for Dragging */
+.widget-drag-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5; /* Above webview (if z-index works, but webview is special) */
+  /* Actually, since webview is native, z-index might not work perfectly unless we use an iframe or if webview pointer-events:none works.
+     We set pointer-events:none on .widget-content in edit mode above.
+     So drags should go through to .widget-container.
+  */
+  display: none;
+}
+
+.edit-mode .widget-drag-overlay {
+  display: block;
+  cursor: grab;
+}
+
 .widget-container.is-dragging {
   opacity: 0.8;
   z-index: 999;
@@ -172,6 +192,11 @@ body, html {
   pointer-events: none;
   display: none;
   border-radius: 4px;
+}
+
+.ghost-indicator.error {
+  background: rgba(255, 0, 0, 0.2);
+  border-color: #ff4757;
 }
 
 /* Context Menu */

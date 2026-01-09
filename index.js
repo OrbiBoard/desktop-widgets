@@ -65,7 +65,7 @@ function createWidgetWindow() {
     y,
     width,
     height,
-    type: 'toolbar', // 'desktop' sometimes has issues with focus on some windows versions when used with SetParent
+    type: 'desktop', // Changed to desktop to better support background behavior
     frame: false,
     transparent: true,
     resizable: false,
@@ -90,11 +90,19 @@ function createWidgetWindow() {
   widgetWindow.setIgnoreMouseEvents(true, { forward: true });
 
   // Pin to desktop (WorkerW) using Plugin API
-  if (pluginApi && pluginApi.desktop && pluginApi.desktop.attachToDesktop) {
-    pluginApi.desktop.attachToDesktop(widgetWindow);
-  } else {
-    console.error('Desktop API not available, widgets may not stick to desktop background.');
-  }
+  // Add a small delay to ensure window handle is ready and stable
+  setTimeout(() => {
+    if (pluginApi && pluginApi.desktop && pluginApi.desktop.attachToDesktop) {
+        const res = pluginApi.desktop.attachToDesktop(widgetWindow);
+        if (!res || !res.ok) {
+            console.error('Failed to attach to desktop:', res ? res.error : 'Unknown error');
+        } else {
+            console.log('Successfully attached widget window to desktop.');
+        }
+    } else {
+        console.error('Desktop API not available, widgets may not stick to desktop background.');
+    }
+  }, 500);
 
   widgetWindow.on('closed', () => {
     widgetWindow = null;

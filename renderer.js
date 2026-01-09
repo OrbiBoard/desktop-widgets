@@ -121,9 +121,8 @@ async function init() {
   window.addEventListener('mouseup', (e) => {
     if (!isSelecting) return;
     isSelecting = false;
-    selectionBox.style.display = 'none';
     
-    // Calculate selection
+    // Calculate selection BEFORE hiding the box
     const boxRect = selectionBox.getBoundingClientRect();
     if (boxRect.width > 5 && boxRect.height > 5) {
         widgets.forEach(w => {
@@ -138,6 +137,8 @@ async function init() {
             }
         });
     }
+
+    selectionBox.style.display = 'none';
     
     updateAlignmentToolbar();
   });
@@ -385,26 +386,24 @@ function renderComponentPanel() {
        const width = comp.recommendedSize ? comp.recommendedSize.width : 300;
        const height = comp.recommendedSize ? comp.recommendedSize.height : 200;
        
-       // Find empty slot logic
-       // Start from Top-Right (Standard Desktop icon flow usually Left-Top or Right-Top. User requested "Right add first, then Left, then Down")
-       // Wait, user said: "新组件优先在右侧添加，超出高度后向左再向下" 
-       // -> Prioritize adding to the Right. Exceed height -> Move Left -> Then Down?
-       // This phrasing is slightly ambiguous. Usually "Right side" implies filling a column on the right edge.
-       // "Exceed height" implies vertical stacking. 
-       // "Move Left" implies next column is to the left.
-       // So: Fill Rightmost column (Top->Bottom). If full, move to next column to the left.
-       
        const margin = gridSize;
-       const maxX = window.innerWidth - margin;
-       const maxY = window.innerHeight - 200; // Leave space for panel
+       // Snap search boundaries to grid
+       const safeWidth = Math.floor(window.innerWidth / gridSize) * gridSize;
+       const safeHeight = Math.floor(window.innerHeight / gridSize) * gridSize;
        
-       let bestX = maxX - width; // Start at rightmost column
+       const maxX = safeWidth - margin;
+       const maxY = safeHeight - 200; 
+       
+       // Snap start position to grid
+       const startX = Math.floor((maxX - width) / gridSize) * gridSize;
+       
+       let bestX = startX;
        let bestY = margin;
        
        let found = false;
        
        // Loop columns from Right to Left
-       for (let x = maxX - width; x >= margin; x -= gridSize) {
+       for (let x = startX; x >= margin; x -= gridSize) {
            // Loop rows from Top to Bottom
            for (let y = margin; y <= maxY - height; y += gridSize) {
                // Check collision with ALL existing widgets
@@ -462,11 +461,23 @@ function getComponentById(id) {
 }
 
 function createWidgetElement(widget) {
-  const comp = getComponentById(widget.componentId);
-  if (!comp) return;
+  let comp = getComponentById(widget.componentId);
+  
+  // Handle missing component gracefully
+  if (!comp) {
+      console.warn(`Component not found for widget ${widget.id} (componentId: ${widget.componentId}). Rendering placeholder.`);
+      comp = {
+          id: widget.componentId,
+          name: 'Unknown Component',
+          url: '', // No URL
+          isMissing: true
+      };
+  }
 
   const el = document.createElement('div');
   el.className = 'widget-container';
+  if (comp.isMissing) el.classList.add('widget-error');
+  
   el.id = `widget-${widget.id}`;
   el.style.left = `${widget.x}px`;
   el.style.top = `${widget.y}px`;
@@ -474,26 +485,48 @@ function createWidgetElement(widget) {
   el.style.height = `${widget.h}px`;
 
   // Content
-  const webview = document.createElement('webview');
-  webview.className = 'widget-content';
-  webview.setAttribute('nodeintegration', 'true');
-  webview.setAttribute('webpreferences', 'contextIsolation=no, nodeIntegration=true'); // Allow widgets to use Node API if needed
-  webview.partition = `persist:widget-${widget.id}`; // Independent session/storage per widget
-  webview.src = comp.url || comp.entry; // Plugin manager provides url
-  
-  webview.addEventListener('dom-ready', () => {
-    webview.send('config-updated', widget.config || {});
-  });
+  if (comp.isMissing) {
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'widget-content error-placeholder';
+      errorDiv.style.background = 'rgba(255, 0, 0, 0.1)';
+      errorDiv.style.border = '2px dashed red';
+      errorDiv.style.color = 'red';
+      errorDiv.style.display = 'flex';
+      errorDiv.style.alignItems = 'center';
+      errorDiv.style.justifyContent = 'center';
+      errorDiv.style.flexDirection = 'column';
+      errorDiv.innerHTML = `
+        <div style="font-size: 24px;"><i class="ri-error-warning-line"></i></div>
+        <div style="font-size: 12px; margin-top: 5px;">Missing: ${widget.componentId}</div>
+      `;
+      el.appendChild(errorDiv);
+  } else {
+      const webview = document.createElement('webview');
+      webview.className = 'widget-content';
+      webview.setAttribute('nodeintegration', 'true');
+      webview.setAttribute('webpreferences', 'contextIsolation=no, nodeIntegration=true'); // Allow widgets to use Node API if needed
+      webview.partition = `persist:widget-${widget.id}`; // Independent session/storage per widget
+      webview.src = comp.url || comp.entry; // Plugin manager provides url
+      
+      webview.addEventListener('dom-ready', () => {
+        webview.send('config-updated', widget.config || {});
+      });
 
-  // Listen for save requests from widget (e.g. Note content)
-  webview.addEventListener('ipc-message', (event) => {
-    if (event.channel === 'save-settings') {
-      widget.config = event.args[0];
-      saveConfig();
-    }
-  });
-  
-  el.appendChild(webview);
+      // Listen for save requests from widget (e.g. Note content)
+      webview.addEventListener('ipc-message', (event) => {
+        if (event.channel === 'save-settings') {
+          widget.config = event.args[0];
+          saveConfig();
+        }
+      });
+      
+      el.appendChild(webview);
+  }
+
+  // Drag Overlay (for easier dragging in edit mode)
+  const dragOverlay = document.createElement('div');
+  dragOverlay.className = 'widget-drag-overlay';
+  el.appendChild(dragOverlay);
 
   // Resize Handle
   const handle = document.createElement('div');
@@ -572,10 +605,6 @@ function setupInteractions(el, widget, handle) {
     });
     
     ghostIndicator.style.display = 'block';
-    // We only show one ghost indicator for the "leader" widget to keep it simple, 
-    // OR we could try to show bounding box ghost. 
-    // Let's stick to single ghost for the leader (current widget) for grid snapping reference.
-    
     // Set initial ghost
     ghostIndicator.style.left = `${widget.x}px`;
     ghostIndicator.style.top = `${widget.y}px`;
@@ -583,9 +612,30 @@ function setupInteractions(el, widget, handle) {
     ghostIndicator.style.height = `${widget.h}px`;
 
     const onMove = (moveEvent) => {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
+      let dx = moveEvent.clientX - startX;
+      let dy = moveEvent.clientY - startY;
       
+      // Boundary checks: Constrain dx/dy so NO widget goes off screen
+      // Calculate allowed range
+      let minDx = -Infinity, maxDx = Infinity;
+      let minDy = -Infinity, maxDy = Infinity;
+
+      selectedWidgets.forEach(w => {
+          const init = initialPositions.get(w.id);
+          // Min dx: widget.x + dx >= 0 -> dx >= -widget.x
+          minDx = Math.max(minDx, -init.x);
+          // Max dx: widget.x + w + dx <= window.innerWidth -> dx <= window.innerWidth - w - x
+          maxDx = Math.min(maxDx, window.innerWidth - w.w - init.x);
+          
+          // Min dy: widget.y + dy >= 0 -> dy >= -widget.y
+          minDy = Math.max(minDy, -init.y);
+          // Max dy: widget.y + h + dy <= window.innerHeight -> dy <= window.innerHeight - h - y
+          maxDy = Math.min(maxDy, window.innerHeight - w.h - init.y);
+      });
+
+      dx = Math.max(minDx, Math.min(dx, maxDx));
+      dy = Math.max(minDy, Math.min(dy, maxDy));
+
       // Update all selected widgets visual position
       selectedWidgets.forEach(w => {
           const initPos = initialPositions.get(w.id);
@@ -602,11 +652,64 @@ function setupInteractions(el, widget, handle) {
       const leaderInit = initialPositions.get(widget.id);
       const leaderNewX = leaderInit.x + dx;
       const leaderNewY = leaderInit.y + dy;
-      const snapX = Math.round(leaderNewX / gridSize) * gridSize;
-      const snapY = Math.round(leaderNewY / gridSize) * gridSize;
+      
+      // Clamp Snap Calculation to avoid OOB
+      const minSnapX = 0;
+      const maxSnapX = Math.floor((window.innerWidth - widget.w) / gridSize) * gridSize;
+      const minSnapY = 0;
+      const maxSnapY = Math.floor((window.innerHeight - widget.h) / gridSize) * gridSize;
+
+      let snapX = Math.round(leaderNewX / gridSize) * gridSize;
+      let snapY = Math.round(leaderNewY / gridSize) * gridSize;
+      
+      snapX = Math.max(minSnapX, Math.min(snapX, maxSnapX));
+      snapY = Math.max(minSnapY, Math.min(snapY, maxSnapY));
       
       ghostIndicator.style.left = `${snapX}px`;
       ghostIndicator.style.top = `${snapY}px`;
+      
+      // Store current valid dx/dy for onUp
+      widget.lastValidDx = dx;
+      widget.lastValidDy = dy;
+
+      // Check collision for ghost (Visual Feedback)
+      let ghostOverlap = false;
+      const unselectedWidgets = widgets.filter(w => !selectedWidgetIds.has(w.id));
+      
+      // Calculate snap delta relative to leader original pos
+      // snapX/Y are leader's new snapped pos
+      const snapDeltaX = snapX - leaderInit.x;
+      const snapDeltaY = snapY - leaderInit.y;
+
+      for (const w of selectedWidgets) {
+          const init = initialPositions.get(w.id);
+          const dest = {
+              x: init.x + snapDeltaX,
+              y: init.y + snapDeltaY,
+              w: w.w,
+              h: w.h
+          };
+          
+          // Boundary check for ghost
+          if (dest.x < 0 || dest.y < 0 || dest.x + dest.w > window.innerWidth || dest.y + dest.h > window.innerHeight) {
+              ghostOverlap = true;
+              break;
+          }
+
+          for (const other of unselectedWidgets) {
+              if (dest.x < other.x + other.w &&
+                  dest.x + dest.w > other.x &&
+                  dest.y < other.y + other.h &&
+                  dest.y + dest.h > other.y) {
+                  ghostOverlap = true;
+                  break;
+              }
+          }
+          if (ghostOverlap) break;
+      }
+
+      if (ghostOverlap) ghostIndicator.classList.add('error');
+      else ghostIndicator.classList.remove('error');
     };
 
     const onUp = (upEvent) => {
@@ -620,8 +723,7 @@ function setupInteractions(el, widget, handle) {
       
       ghostIndicator.style.display = 'none';
 
-      // Check if dropped on component panel (Remove) - Only for leader? 
-      // Or if ANY widget is dropped there? Let's assume leader.
+      // Check if dropped on component panel (Remove)
       const panelRect = componentPanel.getBoundingClientRect();
       if (upEvent.clientY > panelRect.top) {
         selectedWidgets.forEach(w => removeWidget(w.id));
@@ -629,8 +731,8 @@ function setupInteractions(el, widget, handle) {
         return;
       }
 
-      // Calculate Snap Delta based on Leader
-      // Leader current visual pos
+      // Calculate Snap Delta based on Leader using the LAST VALID dx/dy
+      // We re-calculate based on visual position which is already clamped
       const leaderEl = document.getElementById(`widget-${widget.id}`);
       const currentLeft = parseFloat(leaderEl.style.left);
       const currentTop = parseFloat(leaderEl.style.top);
@@ -642,20 +744,68 @@ function setupInteractions(el, widget, handle) {
       const snapDeltaX = snappedLeft - initLeader.x;
       const snapDeltaY = snappedTop - initLeader.y;
       
-      // Apply snap delta to ALL widgets
+      // Check for overlap
+      let hasOverlap = false;
+      const tempPositions = new Map();
+
+      // First calculate where everyone WOULD go
       selectedWidgets.forEach(w => {
           const init = initialPositions.get(w.id);
-          w.x = init.x + snapDeltaX;
-          w.y = init.y + snapDeltaY;
-          
-          const wel = document.getElementById(`widget-${w.id}`);
-          if (wel) {
-              wel.style.left = `${w.x}px`;
-              wel.style.top = `${w.y}px`;
-          }
+          const destX = init.x + snapDeltaX;
+          const destY = init.y + snapDeltaY;
+          tempPositions.set(w.id, { x: destX, y: destY, w: w.w, h: w.h });
       });
 
-      saveConfig();
+      // Check collision with unselected widgets
+      const unselectedWidgets = widgets.filter(w => !selectedWidgetIds.has(w.id));
+      
+      for (const w of selectedWidgets) {
+          const dest = tempPositions.get(w.id);
+          // Boundary check (double check snapped)
+          if (dest.x < 0 || dest.y < 0 || dest.x + dest.w > window.innerWidth || dest.y + dest.h > window.innerHeight) {
+              hasOverlap = true; // Treat OOB as overlap/invalid
+              break;
+          }
+
+          for (const other of unselectedWidgets) {
+              if (dest.x < other.x + other.w &&
+                  dest.x + dest.w > other.x &&
+                  dest.y < other.y + other.h &&
+                  dest.y + dest.h > other.y) {
+                  hasOverlap = true;
+                  break;
+              }
+          }
+          if (hasOverlap) break;
+      }
+
+      if (hasOverlap) {
+          // Revert visual positions
+          selectedWidgets.forEach(w => {
+              const init = initialPositions.get(w.id);
+              const wel = document.getElementById(`widget-${w.id}`);
+              if (wel) {
+                  wel.style.left = `${init.x}px`;
+                  wel.style.top = `${init.y}px`;
+              }
+          });
+          // Do not save config
+      } else {
+          // Apply changes
+          selectedWidgets.forEach(w => {
+              const dest = tempPositions.get(w.id);
+              w.x = dest.x;
+              w.y = dest.y;
+              
+              const wel = document.getElementById(`widget-${w.id}`);
+              if (wel) {
+                  wel.style.left = `${w.x}px`;
+                  wel.style.top = `${w.y}px`;
+              }
+          });
+          saveConfig();
+      }
+      
       updateAlignmentToolbar();
     };
 
