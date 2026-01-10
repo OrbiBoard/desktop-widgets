@@ -4,6 +4,7 @@ const { ipcRenderer } = require('electron');
 let isEditMode = false;
 let gridSize = 50;
 let widgets = []; // { id, componentId, x, y, w, h, config: {} }
+let processedDefaults = [];
 let components = []; // List of available components
 let activeSettingsWidgetId = null;
 
@@ -63,14 +64,37 @@ async function init() {
   if (savedConfig) {
     if (savedConfig.gridSize) gridSize = savedConfig.gridSize;
     if (savedConfig.widgets) widgets = savedConfig.widgets;
+    if (savedConfig.processedDefaults) processedDefaults = savedConfig.processedDefaults;
   }
 
   // Load Components
   const res = await ipcRenderer.invoke('desktop-widgets:get-components');
   if (res && res.ok && res.components) {
     // Filter components for desktop usage
-    components = res.components.filter(c => c.usage === 'desktop');
+    components = res.components.filter(c => c.group === 'desktop_widget');
     renderComponentPanel();
+
+    // Check for default launcher
+    const launcherId = 'desktop-launcher-widget';
+    if (!processedDefaults.includes(launcherId)) {
+        const launcherComp = components.find(c => c.id === launcherId);
+        if (launcherComp) {
+            const w = launcherComp.recommendedSize ? launcherComp.recommendedSize.width : 380;
+            const h = launcherComp.recommendedSize ? launcherComp.recommendedSize.height : 280;
+            
+            // Calculate bottom right position
+            const safeWidth = Math.floor(window.innerWidth / gridSize) * gridSize;
+            const safeHeight = Math.floor(window.innerHeight / gridSize) * gridSize;
+            
+            // Margin 2 grids from right/bottom for better look
+            const x = safeWidth - w - (gridSize * 1); 
+            const y = safeHeight - h - (gridSize * 1);
+            
+            addWidget(launcherId, x, y, w, h);
+            processedDefaults.push(launcherId);
+            saveConfig();
+        }
+    }
   }
 
   renderWidgets();
@@ -274,7 +298,8 @@ function alignSelectedWidgets(action) {
 function saveConfig() {
   ipcRenderer.invoke('desktop-widgets:save-config', {
     gridSize,
-    widgets
+    widgets,
+    processedDefaults
   });
 }
 

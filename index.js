@@ -1,4 +1,4 @@
-const { BrowserWindow, screen, ipcMain } = require('electron');
+const { BrowserWindow, screen, ipcMain, shell } = require('electron');
 const path = require('path');
 
 let widgetWindow = null;
@@ -51,6 +51,22 @@ function initIPC() {
       // This might be useful if we want to fetch specific component defaults?
       // For now, the frontend manages the merged config.
       return {}; 
+  });
+
+  ipcMain.handle('desktop-widgets:call-plugin', async (event, { pluginId, fn, args }) => {
+    if (pluginApi && pluginApi.call) {
+        return await pluginApi.call(pluginId, fn, args);
+    }
+    return { ok: false, error: 'API not ready' };
+  });
+
+  ipcMain.handle('desktop-widgets:open-path', async (event, filePath) => {
+      try {
+          await shell.openPath(filePath);
+          return { ok: true };
+      } catch (e) {
+          return { ok: false, error: e.message };
+      }
   });
 }
 
