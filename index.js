@@ -68,6 +68,24 @@ function initIPC() {
           return { ok: false, error: e.message };
       }
   });
+
+  ipcMain.on('desktop-widgets:set-shape', (event, rects) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win && win === widgetWindow && !win.isDestroyed()) {
+      try {
+        // Ensure rects are integers
+        const validRects = rects.map(r => ({
+            x: Math.round(r.x),
+            y: Math.round(r.y),
+            width: Math.round(r.width),
+            height: Math.round(r.height)
+        }));
+        win.setShape(validRects);
+      } catch (e) {
+        console.error('Failed to set window shape:', e);
+      }
+    }
+  });
 }
 
 function createWidgetWindow() {
@@ -96,14 +114,15 @@ function createWidgetWindow() {
       nodeIntegration: true,
       contextIsolation: false,
       webSecurity: false,
-      webviewTag: true
+      webviewTag: true,
+      enableRemoteModule: true // Ensure remote module is enabled if needed, though we use IPC
     }
   });
 
   widgetWindow.loadFile(path.join(__dirname, 'index.html'));
 
-  // Initial state: ignore mouse events (pass through to desktop icons)
-  widgetWindow.setIgnoreMouseEvents(true, { forward: true });
+  // Initial state: do not ignore mouse events (let setShape handle transparency)
+  widgetWindow.setIgnoreMouseEvents(false);
 
   // Pin to desktop (WorkerW) using Plugin API
   // Add a small delay to ensure window handle is ready and stable

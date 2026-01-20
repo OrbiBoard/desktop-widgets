@@ -1,4 +1,5 @@
-body, html {
+body,
+html {
   margin: 0;
   padding: 0;
   width: 100%;
@@ -24,24 +25,27 @@ body, html {
 }
 
 /* Edit Mode Background */
-  #grid-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none; /* Let clicks pass through to widgets */
-    background-color: rgba(0, 0, 0, 0.4);
-    background-image: 
-      linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
-    background-size: 50px 50px; /* Default grid size */
-    opacity: 0;
-    transition: opacity 0.3s;
-    z-index: 1; /* Increased z-index to be above widgets layer but allow clicks to pass through if pointer-events:none */
-  }
-  
-  /* However, grid overlay needs to catch clicks for selection? 
+#grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  /* Let clicks pass through to widgets */
+  background-color: rgba(0, 0, 0, 0.4);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+  /* Default grid size */
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 1;
+  /* Increased z-index to be above widgets layer but allow clicks to pass through if pointer-events:none */
+}
+
+/* However, grid overlay needs to catch clicks for selection? 
      No, selection logic is on widgetsLayer. 
      Wait, if grid-overlay is on top (z-index 2) and pointer-events: none, then clicks go to widgetsLayer (z-index 1). Correct.
      BUT, if we want grid overlay to be visible ON TOP of widgets (for alignment guide), it should be high z-index.
@@ -56,69 +60,253 @@ body, html {
   opacity: 1;
 }
 
-/* Component Panel */
+/* Component Panel (Floating Window) */
 #component-panel {
   position: fixed;
-  bottom: -200px; /* Hidden by default */
-  left: 0;
-  width: 100%;
-  height: 180px;
+  width: 340px;
+  height: 520px;
   background: rgba(30, 30, 30, 0.95);
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 10px;
-  box-sizing: border-box;
-  transition: bottom 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 1000;
-  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  display: none;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  z-index: 2000;
+  overflow: hidden;
 }
 
 .edit-mode #component-panel {
-  bottom: 0;
+  display: flex !important;
+  /* Force display in edit mode */
+}
+
+.panel-header {
+  height: 40px;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  cursor: grab;
+}
+
+.panel-header:active {
+  cursor: grabbing;
+}
+
+.panel-title-container {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-back-btn {
+  background: transparent;
+  border: none;
+  color: #ccc;
+  cursor: pointer;
+  padding: 4px;
+  margin-right: 5px;
+  display: none;
+  /* Hidden by default */
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.panel-back-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.panel-title {
+  color: #eee;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel-controls {
+  display: flex;
+  gap: 5px;
+}
+
+.panel-btn {
+  background: transparent;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+#panel-close-btn:hover {
+  background: #ff4757;
+}
+
+.panel-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Panel Toolbar */
+.panel-toolbar {
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.search-box {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.search-box i {
+  color: #888;
+  font-size: 14px;
+}
+
+.search-box input {
+  background: transparent;
+  border: none;
+  color: white;
+  width: 100%;
+  padding: 6px;
+  font-size: 12px;
+  outline: none;
+}
+
+.sort-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 4px;
+  color: #ccc;
+  cursor: pointer;
+  width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sort-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+/* Component List Styles */
+.component-list-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  /* 2 columns */
+  gap: 10px;
+  align-content: start;
 }
 
 .component-item {
-  width: 100px;
-  height: 120px;
-  margin: 0 10px;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: grab;
+  transition: transform 0.2s, background 0.2s;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: grab;
-  color: white;
-  transition: background 0.2s;
-  flex-shrink: 0;
+  width: 100%;
+  /* Fill grid cell */
+  height: auto;
+  margin: 0;
 }
 
 .component-item:hover {
   background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
 }
 
-.component-icon {
-  font-size: 32px;
-  margin-bottom: 8px;
+.component-preview {
+  width: 100%;
+  height: 100px;
+  /* Increased height */
+  background: transparent;
+  /* Transparent background */
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  /* Padding for inner content */
+  box-sizing: border-box;
+}
+
+.component-preview iframe,
+.component-preview img {
+  width: 220%;
+  height: 210%;
+  border: none;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+  transform: scale(0.4);
 }
 
 .component-name {
-  font-size: 12px;
+  padding: 8px;
+  font-size: 11px;
+  color: #ddd;
   text-align: center;
-  padding: 0 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* No Results Message */
+.no-results {
+  text-align: center;
+  color: #666;
+  padding: 20px;
+  font-size: 12px;
+  grid-column: 1 / -1;
+  /* Span full width */
+  width: 100%;
 }
 
 /* Widget Container */
 .widget-container {
   position: absolute;
   background: transparent;
-  transition: transform 0.1s, width 0.1s, height 0.1s; /* Smooth movement during edit */
-  overflow: visible; /* Changed to visible to allow shadows if needed, or hidden for border-radius clipping */
+  transition: transform 0.1s, width 0.1s, height 0.1s;
+  /* Smooth movement during edit */
+  overflow: visible;
+  /* Changed to visible to allow shadows if needed, or hidden for border-radius clipping */
   box-sizing: border-box;
-  padding: 10px; /* Add outer margin simulation */
+  padding: 10px;
+  /* Add outer margin simulation */
 }
 
 .widget-content {
@@ -126,15 +314,19 @@ body, html {
   height: 100%;
   border: none;
   background: transparent;
-  pointer-events: auto; /* Widgets need interaction */
-  border-radius: 12px; /* Rounded corners for all widgets */
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15); /* Soft shadow for better visibility */
-  overflow: hidden; /* Clip content to border radius */
+  pointer-events: auto;
+  /* Widgets need interaction */
+  border-radius: 12px;
+  /* Rounded corners for all widgets */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  /* Soft shadow for better visibility */
+  overflow: hidden;
+  /* Clip content to border radius */
 }
 
 /* Block interactions in edit mode to allow dragging */
 .edit-mode .widget-content {
-  pointer-events: none; 
+  pointer-events: none;
 }
 
 /* Edit Mode Overlay for Dragging */
@@ -144,7 +336,8 @@ body, html {
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 5; /* Above webview (if z-index works, but webview is special) */
+  z-index: 5;
+  /* Above webview (if z-index works, but webview is special) */
   /* Actually, since webview is native, z-index might not work perfectly unless we use an iframe or if webview pointer-events:none works.
      We set pointer-events:none on .widget-content in edit mode above.
      So drags should go through to .widget-container.
@@ -168,19 +361,23 @@ body, html {
   position: absolute;
   bottom: -10px;
   right: -10px;
-  width: 30px; /* Larger for touch */
-  height: 30px; /* Larger for touch */
+  width: 30px;
+  /* Larger for touch */
+  height: 30px;
+  /* Larger for touch */
   background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(0,0,0,0.2);
-  border-radius: 50%; /* Circle shape */
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 50%;
+  /* Circle shape */
   cursor: se-resize;
   display: none;
   z-index: 10;
-  box-shadow: 0 0 5px rgba(0,0,0,0.3);
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
 }
 
 .edit-mode .widget-container .resize-handle {
-  display: block; /* Always visible in edit mode for accessibility */
+  display: block;
+  /* Always visible in edit mode for accessibility */
 }
 
 /* Ghost Indicator */
@@ -209,7 +406,7 @@ body, html {
   min-width: 150px;
   display: none;
   z-index: 2000;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .menu-item {
@@ -252,8 +449,9 @@ body, html {
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-  padding: 0; /* Webview inside */
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  padding: 0;
+  /* Webview inside */
   overflow: hidden;
   z-index: 3001;
   /* Positioned via JS next to widget */
@@ -276,7 +474,7 @@ body, html {
 }
 
 .widget-container.is-selected .widget-content {
-  box-shadow: 0 0 0 2px #0078d4, 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 0 0 2px #0078d4, 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* Alignment Toolbar */
@@ -288,7 +486,7 @@ body, html {
   display: flex;
   gap: 5px;
   z-index: 3000;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
   pointer-events: auto;
 }
 
@@ -321,7 +519,7 @@ body, html {
   padding: 8px 16px;
   font-size: 14px;
   cursor: pointer;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
 }
 
 .close-edit-btn:hover {
