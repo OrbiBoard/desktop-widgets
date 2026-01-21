@@ -171,6 +171,16 @@
            input.value = value;
            input.style.height = '40px';
            input.style.padding = '2px';
+        } else if (field.type === 'datetime') {
+           input = document.createElement('input');
+           input.type = 'datetime-local';
+           input.step = '1'; // Allow seconds
+           // Convert "YYYY-MM-DD HH:mm:ss" to "YYYY-MM-DDTHH:mm:ss" for input
+           if (value && value.indexOf('T') === -1) {
+               input.value = value.replace(' ', 'T');
+           } else {
+               input.value = value;
+           }
         } else {
            input = document.createElement('input');
            input.type = 'text';
@@ -203,6 +213,14 @@
            newConfig[key] = input.checked;
          } else if (type === 'number' || type === 'range') {
            newConfig[key] = Number(input.value);
+         } else if (type === 'datetime') {
+           // Convert back to space separated if needed, or keep ISO
+           // Requirement said: 2026-05-01 12:00:00
+           if (input.value) {
+               newConfig[key] = input.value.replace('T', ' ');
+           } else {
+               newConfig[key] = '';
+           }
          } else {
            newConfig[key] = input.value;
          }
@@ -223,6 +241,12 @@
            newConfig[key] = input.checked;
          } else if (type === 'number' || type === 'range') {
            newConfig[key] = Number(input.value);
+         } else if (type === 'datetime') {
+             if (input.value) {
+                 newConfig[key] = input.value.replace('T', ' ');
+             } else {
+                 newConfig[key] = '';
+             }
          } else {
            newConfig[key] = input.value;
          }
