@@ -32,6 +32,7 @@ let panelState = {
 
 // Initialization
 async function init() {
+    console.log('Initializing Desktop Widgets...');
     // Create Ghost Indicator
     ghostIndicator = document.createElement('div');
     ghostIndicator.className = 'ghost-indicator';
@@ -747,6 +748,10 @@ async function init() {
                 }
             });
 
+            if (widget.transparent) {
+                webview.classList.add('is-transparent');
+            }
+
             el.appendChild(webview);
         }
 
@@ -764,7 +769,6 @@ async function init() {
         setupInteractions(el, widget, handle);
 
         widgetsLayer.appendChild(el);
-    }
 
     // Touch Handling for Dragging
     const onTouchStart = (e) => {
@@ -943,6 +947,8 @@ async function init() {
     };
 
     handle.addEventListener('touchstart', onResizeTouchStart, { passive: false });
+    }
+
     // With setShape, background is already transparent/non-interactive.
     // We use blur to close popups if user clicks outside (on desktop).
     window.addEventListener('blur', () => {
@@ -1305,6 +1311,28 @@ async function init() {
     // Logic
     function addWidget(componentId, x, y, w, h) {
         const id = `widget_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        
+        // Load defaults from component definition
+        const comp = getComponentById(componentId);
+        let initialConfig = {};
+        let initialTransparent = false;
+
+        if (comp) {
+            // 1. Config Schema Defaults
+            if (comp.configSchema) {
+                Object.keys(comp.configSchema).forEach(key => {
+                    const field = comp.configSchema[key];
+                    if (field.default !== undefined) {
+                        initialConfig[key] = field.default;
+                    }
+                });
+            }
+            // 2. Component Level Defaults
+            if (comp.defaultTransparent) {
+                initialTransparent = true;
+            }
+        }
+
         const widget = {
             id,
             componentId,
@@ -1312,7 +1340,8 @@ async function init() {
             y: Math.round(y / gridSize) * gridSize,
             w: Math.round(w / gridSize) * gridSize,
             h: Math.round(h / gridSize) * gridSize,
-            config: {}
+            config: initialConfig,
+            transparent: initialTransparent
         };
 
         widgets.push(widget);
@@ -1418,6 +1447,28 @@ async function init() {
             updateWindowShape();
         };
         contextMenu.appendChild(btnSettings);
+        
+        // Transparency Toggle
+        if (isEditMode) {
+             const btnTransparent = document.createElement('div');
+             btnTransparent.className = 'menu-item';
+             btnTransparent.innerText = widget.transparent ? '取消透明 (Disable Transparent)' : '开启透明 (Enable Transparent)';
+             btnTransparent.onclick = () => {
+                 widget.transparent = !widget.transparent;
+                 const el = document.getElementById(`widget-${widget.id}`);
+                 if (el) {
+                     const webview = el.querySelector('webview');
+                     if (webview) {
+                         if (widget.transparent) webview.classList.add('is-transparent');
+                         else webview.classList.remove('is-transparent');
+                     }
+                 }
+                 saveConfig();
+                 contextMenu.style.display = 'none';
+                 updateWindowShape();
+             };
+             contextMenu.appendChild(btnTransparent);
+        }
         
         if (isEditMode) {
             // Reset Size

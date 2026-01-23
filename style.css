@@ -324,6 +324,13 @@ html {
   /* Clip content to border radius */
 }
 
+/* Transparent mode for widget content */
+.widget-content.is-transparent {
+  box-shadow: none;
+  background: transparent;
+  border-radius: 0; /* Optional: remove border radius if fully transparent? Or keep it? */
+}
+
 /* Block interactions in edit mode to allow dragging */
 .edit-mode .widget-content {
   pointer-events: none;
