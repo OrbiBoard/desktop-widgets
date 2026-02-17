@@ -313,8 +313,15 @@ async function init() {
 
     function updateWindowShape() {
         if (isEditMode) {
-            // In Edit Mode, set shape to empty array [] to make the ENTIRE window interactive
-            ipcRenderer.send('desktop-widgets:set-shape', []);
+            // In Edit Mode, ensure the ENTIRE window is interactive by sending full window rect
+            // Sending empty array [] might reset shape but can be ambiguous on some platforms regarding hit-testing
+            const fullRect = {
+                x: 0,
+                y: 0,
+                width: window.innerWidth,
+                height: window.innerHeight
+            };
+            ipcRenderer.send('desktop-widgets:set-shape', [fullRect]);
             return;
         }
 
